@@ -1,0 +1,183 @@
+services:
+
+  backend:
+    image: ${TMPM_DOCKER_REGISTRY}/mpm:${TMPM_VERSION}
+    mem_limit: 2g
+    environment:
+      - TZ=${TZ}
+      - JVM_OPT_ACTIVE_PROCESSOR_COUNT=4
+      # enable the metrics export for prometheus
+      - TMPM_PROMETHEUS_METRICS_ENABLED=true
+      # identity provider settings
+      - TOLERANT_REALM=${TOLERANT_REALM}
+      - TOLERANT_CLIENT_ID=${TOLERANT_CLIENT_ID}
+      - IDENTITY_PROVIDER_URL=${IDENTITY_PROVIDER_URL}
+      # security
+      - SECURITY_ENABLED=${SECURITY_ENABLED}
+    restart: unless-stopped
+    volumes:
+      # Example for custom configuration via volume:
+      # - mpm-config:/opt/tolerant/config
+      # persist mpm data
+      - mpm-data:/opt/tolerant/data
+      # persist mpm logs
+      - mpm-logs:/opt/tolerant/logs
+      - type: bind
+        source: ./config/backend/mpm-gui_config_keycloak.json
+        target: /opt/tolerant/config-default/service/mpm-gui_config.json
+        read_only: true
+    expose:
+      - 8080
+    depends_on:
+      - keycloak
+    extra_hosts:
+      - host.docker.internal:host-gateway
+
+  gui:
+    image: ${TMPM_DOCKER_REGISTRY}/mpm-gui:${TMPM_VERSION}
+    mem_limit: 512m
+    environment:
+      - JVM_OPT_ACTIVE_PROCESSOR_COUNT=2
+      # identity provider settings
+      - TOLERANT_REALM=${TOLERANT_REALM}
+      - IDENTITY_PROVIDER_URL=${IDENTITY_PROVIDER_URL}
+      # security
+      - SECURITY_ENABLED=${SECURITY_ENABLED}
+    restart: unless-stopped
+    #volumes:
+    # Example for custom configuration via volume:
+    # - mpm-config:/opt/tolerant/config
+    expose:
+      - 8080
+    depends_on:
+      - backend
+      - keycloak
+    extra_hosts:
+      - host.docker.internal:host-gateway
+
+  openssl:
+    image: tolerantsoftware/openssl
+    build: ./config/openssl
+    environment:
+      - ORGANISATION_UNIT=TOLERANT MPM
+    volumes:
+      - ./config/nginx/ssl/certs:/etc/ssl/certs
+      - ./config/nginx/ssl/private:/etc/ssl/private
+
+  proxy:
+    image: nginx:${NGINX_VERSION}-alpine
+    environment:
+      - NGINX_FORWARDED_FOR=${NGINX_FORWARDED_FOR}
+      - IDENTITY_PROVIDER_URL=${IDENTITY_PROVIDER_URL}
+      - IDENTITY_PROVIDER_PORT=${KC_PORT}
+      - CERT_PRIVATE_KEY_FILENAME=ssl.key
+      - CERT_FILENAME=ssl.crt
+    restart: unless-stopped
+    volumes_from:
+      - openssl
+    volumes:
+      - type: bind
+        source: ./config/nginx/ssl.conf.template
+        target: /etc/nginx/templates/ssl.conf.template
+        read_only: true
+      # persist nginx logs
+      - nginx-logs:/etc/nginx/logs
+      # Example for ssl data in external volume
+      # nginx-ssl:/etc/nginx/ssl
+    ports:
+      - ${NGINX_HTTPS_PORT}:8443
+    depends_on:
+      backend:
+        condition: service_started
+      gui:
+        condition: service_started
+      grafana:
+        condition: service_started
+      openssl:
+        condition: service_completed_successfully
+        restart: true
+    extra_hosts:
+      - host.docker.internal:host-gateway
+
+  prometheus:
+    image: prom/prometheus:${PROMETHEUS_VERSION}
+    restart: unless-stopped
+    volumes:
+      - type: bind
+        source: ./config/prometheus/prometheus.yml
+        target: /etc/prometheus/prometheus.yml
+        read_only: true
+      - prometheus-data:/prometheus
+    expose:
+      - 9090
+    depends_on:
+      - backend
+
+  grafana:
+    image: grafana/grafana:${GRAFANA_VERSION}
+    restart: unless-stopped
+    volumes:
+      - ./config/grafana/datasources:/etc/grafana/provisioning/datasources
+      - ./config/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - grafana-data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=tolerant
+      - GF_SECURITY_ADMIN_PASSWORD=tolerant
+    ports:
+      - ${GRAFANA_PORT}:3000
+    depends_on:
+      - prometheus
+
+  postgres:
+    image: postgres:${POSTGRES_VERSION}
+    restart: unless-stopped
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: password
+
+  keycloak:
+    image: keycloak/keycloak:${KC_VERSION}
+    command: start-dev --import-realm
+    restart: unless-stopped
+    volumes:
+      - type: bind
+        source: ./config/keycloak/import
+        target: /opt/keycloak/data/import
+        read_only: true
+    environment:
+      - KC_DB=postgres
+      - KC_DB_SCHEMA=public
+      - KC_DB_USERNAME=keycloak
+      - KC_DB_PASSWORD=password
+      - KC_DB_URL_HOST=postgres
+      - KC_DB_URL_PORT=5432
+      - KEYCLOAK_ADMIN=admin
+      - KEYCLOAK_ADMIN_PASSWORD=admin
+      - KC_HOSTNAME_PORT=${KC_PORT}
+      - KC_PROXY=edge
+      - KC_HOSTNAME_STRICT=false
+      - TOLERANT_CLIENT_ID=${TOLERANT_CLIENT_ID}
+      - TOLERANT_REALM=${TOLERANT_REALM}
+      - TMPM_DEFAULT_TENANT=${TMPM_DEFAULT_TENANT}
+    ports:
+      - ${KC_PORT}:8080
+    depends_on:
+      - postgres
+
+volumes:
+  nginx-logs:
+  mpm-logs:
+  mpm-data:
+  grafana-data:
+  prometheus-data:
+  postgres-data:
+  # Examples for external created volumes with custom configuration
+  # mpm-config:
+  #   external: true
+  # Example volume for ssl data of the nginx container
+  # nginx-ssl:
+  #   external: true
+

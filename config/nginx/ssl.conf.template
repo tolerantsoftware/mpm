@@ -1,0 +1,87 @@
+# In case of basic auth or no auth remove the /auth location
+# In case of basic auth comment auth_basic and auth_basic_user_file in
+
+upstream gui {
+    server gui:8080;
+}
+
+upstream backend {
+    server backend:8080;
+}
+
+# server configuration
+server {
+    listen       8443 ssl;
+    server_name  $NGINX_SERVER_NAME;
+
+    ssl_certificate /etc/ssl/certs/$CERT_FILENAME;
+    ssl_certificate_key /etc/ssl/private/$CERT_PRIVATE_KEY_FILENAME;
+
+    # keycloak
+    location /keycloak {
+
+        sub_filter_types html/text application/json application/x-www-form-urlencoded;
+        sub_filter '$IDENTITY_PROVIDER_URL' 'https://$http_host/keycloak';
+        sub_filter 'http://$host:$IDENTITY_PROVIDER_PORT' 'https://$http_host/keycloak';
+        sub_filter 'http://localhost:$IDENTITY_PROVIDER_PORT' 'https://$http_host/keycloak';
+        sub_filter 'http://$host/' 'https://$http_host/keycloak/';
+        sub_filter 'href="/resources/' 'href="/keycloak/resources/';
+        sub_filter_once off;
+
+        proxy_set_header   Host $host;
+        proxy_set_header   Cookie $http_cookie;
+
+        rewrite            ^/keycloak/(.*)$ /$1 break;
+        proxy_pass         $IDENTITY_PROVIDER_URL;
+        proxy_cookie_path  /realms/tolerant /keycloak/realms/tolerant;
+        proxy_cookie_flags one httponly;
+        proxy_cookie_flags ~ secure;
+
+        proxy_redirect     default;
+        proxy_redirect     $IDENTITY_PROVIDER_URL/ /keycloak/;
+
+    }
+
+
+    # frontend
+    location /mpm-gui {
+        proxy_set_header   Host $host;
+        proxy_set_header   X-Forwarded-Server $host;
+        proxy_set_header   X-Real-IP $remote_addr;
+        proxy_set_header   X-Forwarded-Prefix /mpm-gui;
+        proxy_set_header   X-Forwarded-Host $host;
+
+        rewrite            ^/mpm-gui/(.*)$ /$1 break;
+        proxy_pass         http://gui;
+    }
+
+    # backend
+    # prometheus endpoint should not be accasable
+    location /mpm/prometheus {
+        return 403;
+    }
+
+    location /mpm {
+        proxy_set_header   Host $http_host;
+        proxy_set_header   X-Forwarded-Server $host;
+        proxy_set_header   X-Real-IP $remote_addr;
+        proxy_set_header   X-Forwarded-Prefix /mpm;
+        proxy_set_header   X-Forwarded-Host $host;
+        proxy_set_header   X-Forwarded-Proto https;
+
+        rewrite            ^/mpm/(.*)$ /$1 break;
+        proxy_pass         http://backend;
+    }
+
+    location = / {
+        proxy_set_header   Host $host;
+        proxy_set_header   X-Forwarded-Server $host;
+        proxy_set_header   X-Real-IP $remote_addr;
+        proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Prefix /;
+        proxy_set_header   X-Forwarded-Host $host;
+
+        proxy_pass         http://gui;
+    }
+
+}

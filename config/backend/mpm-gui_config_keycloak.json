@@ -1,0 +1,111 @@
+{
+    "score": "90",
+    "iconMapping": {
+        "usages": {
+            "Phone": {
+                "agreed": {
+                    "name": "phone",
+                    "color": "green"
+                },
+                "denied": {
+                    "name": "phone-slash",
+                    "color": "red"
+                }
+            },
+            "SMS": {
+                "agreed": {
+                    "name": "comment-sms",
+                    "color": "green"
+                },
+                "denied": {
+                    "name": "comment-sms",
+                    "color": "red"
+                }
+            },
+            "Email": {
+                "agreed": {
+                    "name": "at",
+                    "color": "green"
+                },
+                "denied": {
+                    "name": "at",
+                    "color": "red"
+                }
+            },
+            "Post": {
+                "agreed": {
+                    "name": "envelope",
+                    "color": "green",
+                    "padding": "0.2em"
+                },
+                "denied": {
+                    "name": "envelope",
+                    "color": "red",
+                    "padding": "0.2em"
+                }
+            },
+            "Ecosystem": {
+                "agreed": {
+                    "name": "globe",
+                    "color": "green"
+                },
+                "denied": {
+                    "name": "globe",
+                    "color": "red"
+                }
+            },
+            "Storage": {
+                "agreed": {
+                    "name": "warehouse",
+                    "color": "green"
+                },
+                "denied": {
+                    "name": "warehouse",
+                    "color": "red"
+                }
+            },
+            "Facebook": {
+                "agreed": {
+                    "name": "facebook-square",
+                    "color": "green"
+                },
+                "denied": {
+                    "name": "facebook-square",
+                    "color": "red"
+                }
+            }
+        }
+    },
+    "tenantSpecificSettings": {
+        "<TENANT>": {
+            "consolidationContext": {
+                "legalEntity": "<LEGAL_ENTITY_NAME>",
+                "purpose": "<PURPOSE_NAME>",
+                "context": "<CONSOLIDATION_CONTEXT>",
+                "includeTotalStatusOnly": false
+            }
+        }
+    },
+    "authConfig": {
+        "authority": "window.location.origin/keycloak/realms/${TOLERANT_REALM:tolerant}",
+        "clientId": "${TOLERANT_CLIENT_ID:tolerant-mpm}",
+        "redirectUrl": "gui.base.url/callback",
+        "postLoginRoute": "gui.base.path/home",
+        "postLogoutRedirectUri": "${TOLERANT_LOGOUT_URL:gui.base.url}",
+        "scope": "openid profile roles",
+        "responseType": "code",
+        "silentRenew": true,
+        "useRefreshToken": true,
+        "maxIdTokenIatOffsetAllowedInSeconds": 10,
+        "ignoreNonceAfterRefresh": true,
+        "issValidationOff": true,
+        "autoUserInfo": false,
+        "historyCleanupOff": true,
+        "customParamsAuthRequest": {
+            "prompt": "select_account"
+        },
+        "secureRoutes": [
+            "/mpm/v1"
+        ]
+    }
+}
