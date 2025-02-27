@@ -72,6 +72,7 @@ services:
       - IDENTITY_PROVIDER_PORT=${KC_PORT}
       - CERT_PRIVATE_KEY_FILENAME=ssl.key
       - CERT_FILENAME=ssl.crt
+      - NGINX_SERVER_NAME=${NGINX_SERVER_NAME}
     restart: unless-stopped
     volumes_from:
       - openssl

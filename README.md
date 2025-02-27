@@ -31,3 +31,10 @@
 +-- .env                                  # a configuration file containing environment variables for Docker Compose
 +-- compose.yaml                          # an example configuration for docker compose 
 +-- README.md
+```
+
+## Steps to use your own identity provider
+
+    Make sure, that you have configured your identity provider having a client with clientId and realm matching the values of TOLERANT_CLIENT_ID and TOLERANT_REALM in the .env file
+    Remove postgres and keykloak from the compose.yml, this includes services, volumes and depends_on sections.
+    Adjust IDENTITY_PROVIDER_URL and KC_PORT in the .env file to the URL of your identity provider and on which port it is running.
